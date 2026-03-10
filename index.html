@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FireZone Tournament Hub 🔥</title>
+  <style>
+    body{margin:0;background:#0a0b0f;}
+    #root{min-height:100vh;}
+    .fz-spin{width:40px;height:40px;border:3px solid #ff4d00;border-top-color:transparent;border-radius:50%;animation:fzspin .8s linear infinite;margin:0 auto;}
+    @keyframes fzspin{to{transform:rotate(360deg);}}
+    .fz-loading{min-height:100vh;background:#0a0b0f;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;font-family:'Courier New',monospace;color:#ff4d00;letter-spacing:3px;font-size:12px;}
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="fz-loading">
+      <div class="fz-spin"></div>
+      LOADING...
+    </div>
+  </div>
+
+  <!-- React + Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey:            "AIzaSyCs_vA6iM7cv2uIeOCyX5gW5ZyhlX8ny9o",
+      authDomain:        "freezone-tournament.firebaseapp.com",
+      projectId:         "freezone-tournament",
+      storageBucket:     "freezone-tournament.firebasestorage.app",
+      messagingSenderId: "950936892334",
+      appId:             "1:950936892334:web:d953de1ea6c2a524890e3f"
+    };
+
+    const fbApp  = initializeApp(firebaseConfig);
+    const fbAuth = getAuth(fbApp);
+    const fbDB   = getFirestore(fbApp);
+
+    // Firebase functions ko global banao taaki React use kar sake
+    window.fbAuth = fbAuth;
+    window.fbDB   = fbDB;
+    window.fbFns  = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, doc, setDoc, getDoc, updateDoc, serverTimestamp };
+
+    // Firebase ready hone ke baad React load karo
+    window.dispatchEvent(new Event("firebase-ready"));
+  </script>
+
+  <script type="text/babel" data-type="module">
+    const { useState, useEffect, useCallback } = React;
+    const { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, doc, setDoc, getDoc, updateDoc, serverTimestamp } = window.fbFns || {};
+    const fbAuth = window.fbAuth;
+    const fbDB   = window.fbDB;
+
+    const UPI = { id:"kumarveeru2007@okaxis", name:"FireZone Tournaments", phone:"9170356851" };
+
+    const TOURS = [
+      { id:1, name:"BLAZING INFERNO CUP", map:"Bermuda",   mode:"SQUAD", prize:"₹50,000", entry:99,  slots:100, filled:87, date:"Mar 15, 2026", time:"8:00 PM", status:"upcoming", color:"#ff4d00" },
+      { id:2, name:"DEATH VALLEY OPEN",   map:"Kalahari",  mode:"DUO",   prize:"₹25,000", entry:49,  slots:50,  filled:50, date:"Mar 12, 2026", time:"7:00 PM", status:"live",     color:"#9b00ff" },
+      { id:3, name:"SOLO SHOWDOWN S5",    map:"Purgatory", mode:"SOLO",  prize:"₹10,000", entry:29,  slots:64,  filled:42, date:"Mar 20, 2026", time:"6:00 PM", status:"upcoming", color:"#0077ff" },
+      { id:4, name:"PRO LEAGUE FINALS",   map:"Alpine",    mode:"SQUAD", prize:"₹1,00,000",entry:199, slots:48,  filled:36, date:"Mar 25, 2026", time:"9:00 PM", status:"upcoming", color:"#ffd700" },
+    ];
+
+    const LB = [
+      { rank:1, name:"DeathStrikerX",   uid:"3847261950", kills:284, wins:47, pts:5620, team:"ALPHA SQUAD"  },
+      { rank:2, name:"GhostKiller99",   uid:"2918374650", kills:261, wins:43, pts:5100, team:"PHANTOM CREW" },
+      { rank:3, name:"FireLord_FF",     uid:"1837465920", kills:247, wins:38, pts:4780, team:"BLAZE UNIT"   },
+      { rank:4, name:"NightHawkPro",    uid:"9273641580", kills:229, wins:35, pts:4430, team:"NIGHT OPS"    },
+      { rank:5, name:"StormBreaker_07", uid:"8162534790", kills:210, wins:31, pts:4050, team:"STORM RIDERS" },
+      { rank:6, name:"ShadowSniper",    uid:"7453621890", kills:198, wins:28, pts:3800, team:"SHADOW CLAN"  },
+    ];
+
+    const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@400;700;900&family=Inter:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0b0f;color:#e8eaf0;font-family:'Inter',sans-serif;overflow-x:hidden;}
+::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:#ff4d00;}
+.O{font-family:'Orbitron',monospace;}.R{font-family:'Rajdhani',sans-serif;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+@keyframes gp{0%,100%{box-shadow:0 0 8px #ff6a2280;}50%{box-shadow:0 0 28px #ff6a2280,0 0 56px #ff6a2280;}}
+@keyframes up{from{transform:translateY(22px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes pop{0%{transform:scale(0);}70%{transform:scale(1.2);}100%{transform:scale(1);}}
+@keyframes fl{0%,100%{transform:translateY(0);}50%{transform:translateY(-7px);}}
+.grid-bg{background-image:linear-gradient(rgba(255,77,0,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,77,0,.03) 1px,transparent 1px);background-size:40px 40px;}
+.au{animation:up .3s ease;}
+.bp{background:linear-gradient(135deg,#ff4d00,#ff6a22);color:#fff;border:none;padding:11px 26px;font-family:'Orbitron',monospace;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;cursor:pointer;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);transition:all .2s;}
+.bp:hover{transform:scale(1.03);box-shadow:0 0 18px #ff6a2280;}
+.bp:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.bo{background:transparent;color:#ff4d00;border:1px solid #ff4d00;padding:9px 22px;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:2px;cursor:pointer;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);transition:all .2s;}
+.bo:hover{background:#ff4d0020;}
+.card{background:#16181f;border:1px solid #1e2130;position:relative;overflow:hidden;transition:border-color .3s;}
+.card:hover{border-color:#ff4d0030;}
+.inp{width:100%;background:#111318;border:1px solid #1e2130;color:#e8eaf0;padding:11px 15px;font-family:'Inter',sans-serif;font-size:14px;outline:none;transition:border-color .2s;}
+.inp:focus{border-color:#ff4d00;box-shadow:0 0 8px #ff6a2280;}
+.inp::placeholder{color:#6b7280;}
+.lbl{font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;color:#6b7280;text-transform:uppercase;display:block;margin-bottom:5px;}
+.na{color:#6b7280;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:color .2s;padding:4px 0;position:relative;}
+.na::after{content:'';position:absolute;bottom:-2px;left:0;width:0;height:1px;background:#ff4d00;transition:width .2s;}
+.na:hover,.na.on{color:#e8eaf0;}
+.na:hover::after,.na.on::after{width:100%;}
+.st{font-family:'Orbitron',monospace;font-size:24px;font-weight:900;letter-spacing:4px;text-transform:uppercase;display:inline-block;position:relative;}
+.st::after{content:'';position:absolute;bottom:-8px;left:0;width:50px;height:2px;background:#ff4d00;}
+.st span{color:#ff4d00;}
+.tab{padding:9px 20px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:none;cursor:pointer;color:#6b7280;border-bottom:2px solid transparent;transition:all .2s;}
+.tab.on{color:#ff4d00;border-bottom-color:#ff4d00;}
+.pb{width:100%;height:4px;background:#1e2130;}
+.pf{height:100%;background:linear-gradient(90deg,#ff4d00,#ff6a22);transition:width 1s;}
+.bl{background:#ff3b3b20;color:#ff3b3b;border:1px solid #ff3b3b60;padding:2px 10px;font-size:10px;font-family:'Orbitron',monospace;letter-spacing:2px;animation:blink 1.5s infinite;}
+.bu{background:#00e67615;color:#00e676;border:1px solid #00e67640;padding:2px 10px;font-size:10px;font-family:'Orbitron',monospace;letter-spacing:2px;}
+.bd{background:#6b728015;color:#6b7280;border:1px solid #6b728040;padding:2px 10px;font-size:10px;font-family:'Orbitron',monospace;letter-spacing:2px;}
+.sp{background:#ffd70015;color:#ffd700;border:1px solid #ffd70040;padding:2px 10px;font-size:10px;font-family:'Orbitron',monospace;letter-spacing:1px;}
+.sv{background:#00e67615;color:#00e676;border:1px solid #00e67640;padding:2px 10px;font-size:10px;font-family:'Orbitron',monospace;letter-spacing:1px;}
+.sr{background:#ff3b3b15;color:#ff3b3b;border:1px solid #ff3b3b40;padding:2px 10px;font-size:10px;font-family:'Orbitron',monospace;letter-spacing:1px;}
+select.inp{cursor:pointer;}
+input[type=file]{display:none;}
+textarea.inp{resize:vertical;}
+`;
+
+    const upiDeep = (app, amt) => {
+      const b = `upi://pay?pa=${UPI.id}&pn=${encodeURIComponent(UPI.name)}&am=${amt}&cu=INR`;
+      const m = { PhonePe:`phonepe://pay?pa=${UPI.id}&pn=${encodeURIComponent(UPI.name)}&am=${amt}&cu=INR`, GPay:`tez://upi/pay?pa=${UPI.id}&pn=${encodeURIComponent(UPI.name)}&am=${amt}&cu=INR`, Paytm:`paytmmp://pay?pa=${UPI.id}&pn=${encodeURIComponent(UPI.name)}&am=${amt}&cu=INR` };
+      return m[app]||b;
+    };
+
+    const Av = ({ n, sz=40, g=`linear-gradient(135deg,#ff4d00,#9b00ff)` }) => (
+      <div style={{width:sz,height:sz,borderRadius:"50%",background:g,display:"flex",alignItems:"center",justifyContent:"center",fontSize:sz*.38,fontWeight:700,flexShrink:0,color:"white",fontFamily:"'Orbitron',monospace"}}>{(n||"?")[0].toUpperCase()}</div>
+    );
+
+    function Nav({ pg, go, user }) {
+      return (
+        <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:1000,background:"#0a0b0ff0",backdropFilter:"blur(16px)",borderBottom:"1px solid #1e2130",height:62,display:"flex",alignItems:"center",padding:"0 28px",gap:28}}>
+          <div style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer"}} onClick={()=>go("home")}>
+            <div style={{width:34,height:34,background:"linear-gradient(135deg,#ff4d00,#ff6a22)",clipPath:"polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",display:"flex",alignItems:"center",justifyContent:"center"}}>🔥</div>
+            <div>
+              <div className="O" style={{fontSize:15,fontWeight:900,letterSpacing:2,lineHeight:1}}>FIRE<span style={{color:"#ff4d00"}}>ZONE</span></div>
+              <div className="R" style={{fontSize:8,letterSpacing:3,color:"#6b7280"}}>TOURNAMENT HUB</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:22,flex:1}}>
+            {[["home","Home"],["tournaments","Tournaments"],["leaderboard","Leaderboard"],["live","Live"]].map(([k,l])=>(
+              <span key={k} className={`na ${pg===k?"on":""}`} onClick={()=>go(k)}>{l}</span>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:9,alignItems:"center"}}>
+            {user ? (
+              <>
+                <div onClick={()=>go("wallet")} style={{display:"flex",alignItems:"center",gap:7,background:"#111318",border:"1px solid #1e2130",padding:"5px 11px",cursor:"pointer",transition:"border-color .2s"}} onMouseEnter={e=>e.currentTarget.style.borderColor="#00e676"} onMouseLeave={e=>e.currentTarget.style.borderColor="#1e2130"}>
+                  <span style={{fontSize:15}}>💰</span>
+                  <div>
+                    <div className="O" style={{fontSize:13,fontWeight:700,color:"#00e676"}}>₹{user.wallet||0}</div>
+                    <div style={{fontSize:9,color:"#6b7280",letterSpacing:1}}>WALLET</div>
+                  </div>
+                </div>
+                <div onClick={()=>go("profile")} style={{display:"flex",alignItems:"center",gap:8,background:"#111318",border:"1px solid #1e2130",padding:"5px 11px",cursor:"pointer",transition:"border-color .2s"}} onMouseEnter={e=>e.currentTarget.style.borderColor="#ff4d00"} onMouseLeave={e=>e.currentTarget.style.borderColor="#1e2130"}>
+                  <Av n={user.name} sz={26}/>
+                  <div>
+                    <div className="R" style={{fontSize:13,fontWeight:700,letterSpacing:1}}>{user.name}</div>
+                    <div style={{fontSize:9,color:"#ff4d00",letterSpacing:1}}>PROFILE ▾</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <button className="bo" onClick={()=>go("login")}>LOGIN</button>
+                <button className="bp" onClick={()=>go("signup")}>REGISTER</button>
+              </>
+            )}
+            <button onClick={()=>go("admin")} style={{background:"transparent",border:"1px solid #1e2130",color:"#6b7280",padding:"5px 10px",cursor:"pointer",fontSize:10,fontFamily:"'Rajdhani',sans-serif"}}>⚙ ADMIN</button>
+          </div>
+        </nav>
+      );
+    }
+
+    function Home({ go }) {
+      const [bi, setBi] = useState(0);
+      const BN = [
+        {title:"BLAZING INFERNO CUP",sub:"SQUAD • BERMUDA • MAR 15",prize:"₹50,000",c:"#ff4d00"},
+        {title:"SOLO SHOWDOWN S5",   sub:"SOLO • PURGATORY • MAR 20",prize:"₹10,000",c:"#9b00ff"},
+        {title:"PRO LEAGUE FINALS",  sub:"SQUAD • ALPINE • MAR 25",  prize:"₹1,00,000",c:"#ffd700"},
+      ];
+      useEffect(()=>{const t=setInterval(()=>setBi(i=>(i+1)%3),4000);return()=>clearInterval(t);},[]);
+      const b=BN[bi];
+      return (
+        <div>
+          <div className="grid-bg" style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden",paddingTop:62}}>
+            <div style={{position:"absolute",top:"20%",left:"50%",transform:"translateX(-50%)",width:500,height:280,background:`radial-gradient(ellipse,${b.c}18 0%,transparent 70%)`,transition:"background 1.2s",pointerEvents:"none"}}/>
+            <div className="au" key={bi} style={{textAlign:"center",padding:"56px 20px",maxWidth:800}}>
+              <div className="O" style={{fontSize:10,letterSpacing:6,color:b.c,marginBottom:14}}>◆ FIREZONE TOURNAMENT HUB ◆</div>
+              <div className="O" style={{fontSize:"clamp(32px,6.5vw,68px)",fontWeight:900,lineHeight:1.05,marginBottom:10,textShadow:`0 0 40px ${b.c}55`}}>🔥 {b.title}</div>
+              <div className="R" style={{fontSize:16,letterSpacing:4,color:"#6b7280",marginBottom:22}}>{b.sub}</div>
+              <div className="O" style={{fontSize:38,fontWeight:900,color:"#ffd700",textShadow:"0 0 16px rgba(255,215,0,.4)",marginBottom:32}}>{b.prize} PRIZE POOL</div>
+              <div style={{display:"flex",gap:13,justifyContent:"center"}}>
+                <button className="bp" style={{fontSize:13,padding:"13px 32px"}} onClick={()=>go("tournaments")}>JOIN TOURNAMENT</button>
+                <button className="bo" onClick={()=>go("leaderboard")}>LEADERBOARD</button>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              {BN.map((_,i)=><div key={i} onClick={()=>setBi(i)} style={{width:i===bi?22:7,height:4,background:i===bi?"#ff4d00":"#1e2130",cursor:"pointer",transition:"all .3s"}}/>)}
+            </div>
+            <div style={{position:"absolute",bottom:0,left:0,right:0,background:"#111318",borderTop:"1px solid #1e2130",display:"flex",justifyContent:"center"}}>
+              {[["48,200+","PLAYERS"],["1,240+","TOURNAMENTS"],["₹50 LAKH+","PRIZE GIVEN"]].map(([v,l],i)=>(
+                <div key={i} style={{padding:"17px 44px",textAlign:"center",borderRight:i<2?"1px solid #1e2130":"none"}}>
+                  <div className="O" style={{fontSize:22,fontWeight:900,color:"#ff4d00"}}>{v}</div>
+                  <div className="R" style={{fontSize:11,letterSpacing:2,color:"#6b7280"}}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{padding:"52px 28px",maxWidth:1200,margin:"0 auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:28}}>
+              <div className="st">UPCOMING <span>TOURNAMENTS</span></div>
+              <button className="bo" onClick={()=>go("tournaments")}>VIEW ALL →</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:16}}>
+              {TOURS.map(t=><TC key={t.id} t={t} go={go}/>)}
+            </div>
+          </div>
+          <div style={{padding:"0 28px 52px",maxWidth:1200,margin:"0 auto"}}>
+            <div className="st" style={{marginBottom:28}}>TOP <span>PLAYERS</span></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:13}}>
+              {LB.slice(0,3).map((p,i)=>(
+                <div key={p.rank} className="card" style={{padding:18}}>
+                  <div style={{display:"flex",alignItems:"center",gap:13,marginBottom:13}}>
+                    <div style={{width:44,height:44,borderRadius:"50%",background:i===0?"linear-gradient(135deg,#ffd700,#ffa500)":i===1?"linear-gradient(135deg,#c0c0c0,#888)":"linear-gradient(135deg,#cd7f32,#8b4513)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Orbitron',monospace",fontSize:15,fontWeight:900}}>{p.rank}</div>
+                    <div style={{flex:1}}>
+                      <div className="R" style={{fontSize:16,fontWeight:700}}>{p.name}</div>
+                      <div style={{fontSize:11,color:"#6b7280"}}>{p.team}</div>
+                    </div>
+                    <div className="O" style={{fontSize:18,color:"#ff4d00",fontWeight:700}}>{p.pts.toLocaleString()}</div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+                    {[["KILLS",p.kills,"#ff3b3b"],["WINS",p.wins,"#ffd700"]].map(([l,v,col])=>(
+                      <div key={l} style={{background:"#111318",border:"1px solid #1e2130",padding:"9px 0",textAlign:"center"}}>
+                        <div className="O" style={{fontSize:19,fontWeight:700,color:col}}>{v}</div>
+                        <div style={{fontSize:9,color:"#6b7280",letterSpacing:1}}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function TC({ t, go }) {
+      const pct = Math.round((t.filled/t.slots)*100);
+      return (
+        <div className="card" style={{cursor:"pointer"}} onClick={()=>go("pay_"+t.id)}>
+          <div style={{height:3,background:`linear-gradient(90deg,${t.color},transparent)`}}/>
+          <div style={{padding:17}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:9}}>
+              <span className={t.status==="live"?"bl":t.status==="upcoming"?"bu":"bd"}>{t.status==="live"?"● LIVE":t.status==="upcoming"?"UPCOMING":"ENDED"}</span>
+              <span className="R" style={{fontSize:12,color:"#6b7280",letterSpacing:1}}>{t.mode}</span>
+            </div>
+            <div className="O" style={{fontSize:13,fontWeight:700,marginBottom:3,letterSpacing:1}}>{t.name}</div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:13}}>📍 {t.map} • 🗓 {t.date}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:13}}>
+              <div style={{background:"#111318",border:"1px solid #1e2130",padding:"9px 0",textAlign:"center"}}>
+                <div className="O" style={{fontSize:15,color:"#ffd700"}}>{t.prize}</div>
+                <div style={{fontSize:9,color:"#6b7280",letterSpacing:1}}>PRIZE</div>
+              </div>
+              <div style={{background:"#111318",border:"1px solid #1e2130",padding:"9px 0",textAlign:"center"}}>
+                <div className="O" style={{fontSize:15,color:"#00b4d8"}}>₹{t.entry}</div>
+                <div style={{fontSize:9,color:"#6b7280",letterSpacing:1}}>ENTRY</div>
+              </div>
+            </div>
+            <div style={{marginBottom:13}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,fontSize:12,color:"#6b7280"}}>
+                <span>Slots</span><span style={{color:pct>=100?"#ff3b3b":"#00e676"}}>{t.filled}/{t.slots}</span>
+              </div>
+              <div className="pb"><div className="pf" style={{width:`${pct}%`,background:pct>=100?"linear-gradient(90deg,#ff3b3b,#ff6b6b)":"linear-gradient(90deg,#ff4d00,#ff6a22)"}}/></div>
+            </div>
+            <button className="bp" style={{width:"100%",fontSize:11}} disabled={pct>=100&&t.status==="upcoming"}>
+              {pct>=100?"SLOTS FULL":t.status==="live"?"WATCH LIVE":"PAY & JOIN →"}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function PayPage({ tid, go, user }) {
+      const t = TOURS.find(x=>x.id===Number(tid))||TOURS[0];
+      const [step, setStep] = useState(1);
+      const [fm, setFm] = useState({name:user?.name||"",uid:user?.uid||"",ign:"",team:"",mobile:user?.mobile||"",email:user?.email||""});
+      const [py, setPy] = useState({utr:"",file:null,fname:"",method:"PhonePe"});
+      const [cp, setCp] = useState(false);
+      const [ld, setLd] = useState(false);
+      const [rid] = useState("FF#"+(Math.floor(Math.random()*90000)+10000));
+      const uf=(k,v)=>setFm(f=>({...f,[k]:v}));
+      const up=(k,v)=>setPy(p=>({...p,[k]:v}));
+      const copy=()=>{try{navigator.clipboard.writeText(UPI.id);}catch(e){}setCp(true);setTimeout(()=>setCp(false),2500);};
+      const sub=()=>{setLd(true);setTimeout(()=>{setLd(false);setStep(4);},1800);};
+      if(step===4)return(
+        <div style={{padding:"80px 24px",display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh"}}>
+          <div className="au" style={{textAlign:"center",maxWidth:460}}>
+            <div style={{width:76,height:76,borderRadius:"50%",background:"#00e67618",border:"3px solid #00e676",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,margin:"0 auto 18px",animation:"pop .5s ease"}}>✅</div>
+            <div className="O" style={{fontSize:21,fontWeight:900,color:"#00e676",marginBottom:8}}>REGISTRATION SUCCESSFUL!</div>
+            <div style={{color:"#6b7280",lineHeight:1.9,marginBottom:24}}>Payment submitted! Admin <strong style={{color:"#e8eaf0"}}>30 min</strong> mein verify karega.</div>
+            <div className="card" style={{padding:18,marginBottom:20,textAlign:"left"}}>
+              {[["Registration ID",rid],["Tournament",t.name],["Amount","₹"+t.entry],["Method",py.method],["UTR",py.utr||"—"],["Status","⏳ Pending Verification"]].map(([k,v])=>(
+                <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #1e2130"}}>
+                  <span style={{color:"#6b7280",fontSize:13}}>{k}</span>
+                  <span className="O" style={{fontSize:12,color:k==="Status"?"#ffd700":"#ff4d00"}}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:11,justifyContent:"center"}}>
+              <button className="bp" onClick={()=>go("profile")}>MY PROFILE →</button>
+              <button className="bo" onClick={()=>go("tournaments")}>MORE TOURS</button>
+            </div>
+          </div>
+        </div>
+      );
+      return(
+        <div style={{padding:"80px 24px 52px",maxWidth:720,margin:"0 auto"}}>
+          <div style={{background:"linear-gradient(135deg,#16181f,#1a0800)",border:"1px solid #1e2130",padding:"17px 20px",marginBottom:22,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:10,color:"#6b7280",letterSpacing:2,marginBottom:3}}>REGISTERING FOR</div>
+              <div className="O" style={{fontSize:17,fontWeight:700}}>{t.name}</div>
+            </div>
+            <div className="O" style={{fontSize:26,fontWeight:900,color:"#ffd700"}}>{t.prize}</div>
+          </div>
+          {step===1&&(
+            <div className="card au" style={{padding:26}}>
+              <div className="O" style={{fontSize:12,letterSpacing:2,marginBottom:18}}>PLAYER INFORMATION</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:13,marginBottom:13}}>
+                {[["Player Name","name","Display name"],["Free Fire UID","uid","Your UID"],["In-Game Name","ign","As in Free Fire"],["Team Name","team","Team name"],["Mobile","mobile","+91 XXXXX"],["Email","email","email@example.com"]].map(([l,k,p])=>(
+                  <div key={k}><label className="lbl">{l}</label><input className="inp" value={fm[k]} onChange={e=>uf(k,e.target.value)} placeholder={p}/></div>
+                ))}
+              </div>
+              <button className="bp" style={{float:"right"}} disabled={!fm.name||!fm.uid||!fm.ign||!fm.mobile} onClick={()=>setStep(2)}>NEXT: PAY ₹{t.entry} →</button>
+            </div>
+          )}
+          {step===2&&(
+            <div className="au">
+              <div className="card" style={{padding:26,marginBottom:14}}>
+                <div className="O" style={{fontSize:12,letterSpacing:2,marginBottom:18}}>PAY VIA UPI</div>
+                <div style={{background:"linear-gradient(135deg,#1a0800,#111318)",border:"2px solid #ff4d0055",padding:20,textAlign:"center",marginBottom:22,animation:"gp 3s infinite"}}>
+                  <div style={{fontSize:10,letterSpacing:3,color:"#6b7280",marginBottom:6}}>TOTAL AMOUNT</div>
+                  <div className="O" style={{fontSize:50,fontWeight:900,color:"#ff4d00"}}>₹{t.entry}</div>
+                </div>
+                <div style={{marginBottom:16}}>
+                  <label className="lbl">UPI ID — Copy karo</label>
+                  <div onClick={copy} style={{background:"#111318",border:`1px solid ${cp?"#00e676":"#ff4d00"}40`,padding:"12px 15px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+                    <div className="O" style={{fontSize:18,fontWeight:700,color:"#ff4d00"}}>{UPI.id}</div>
+                    <div style={{fontSize:22}}>{cp?"✅":"📋"}</div>
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+                  {["PhonePe","GPay","Paytm","BHIM"].map(app=>(
+                    <a key={app} href={upiDeep(app,t.entry)} style={{textDecoration:"none"}}>
+                      <div style={{padding:"11px 13px",background:"#111318",border:"1px solid #1e2130",display:"flex",alignItems:"center",gap:9,cursor:"pointer"}}>
+                        <span style={{fontSize:20}}>{app==="PhonePe"?"💜":app==="GPay"?"🔵":app==="Paytm"?"🔷":"🟢"}</span>
+                        <span className="R" style={{fontSize:14,fontWeight:700}}>{app}</span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:9}}>
+                <button className="bo" onClick={()=>setStep(1)}>← BACK</button>
+                <button className="bp" style={{flex:1}} onClick={()=>setStep(3)}>PAYMENT KI ✓ → NEXT</button>
+              </div>
+            </div>
+          )}
+          {step===3&&(
+            <div className="au">
+              <div className="card" style={{padding:26,marginBottom:14}}>
+                <div className="O" style={{fontSize:12,letterSpacing:2,marginBottom:18}}>CONFIRM PAYMENT</div>
+                <div style={{marginBottom:14}}>
+                  <label className="lbl">UTR / Transaction ID *</label>
+                  <input className="inp" value={py.utr} onChange={e=>up("utr",e.target.value)} placeholder="12-digit UTR number"/>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label className="lbl">Payment Screenshot *</label>
+                  <label htmlFor="pss" style={{display:"block",background:"#111318",border:"2px dashed #1e2130",padding:20,textAlign:"center",cursor:"pointer"}}>
+                    {py.file?<div style={{color:"#00e676"}}>✅ {py.fname}</div>:<div>📸 Upload Screenshot</div>}
+                  </label>
+                  <input id="pss" type="file" accept="image/*" onChange={e=>{if(e.target.files[0]){up("file",e.target.files[0]);up("fname",e.target.files[0].name);}}}/>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:9}}>
+                <button className="bo" onClick={()=>setStep(2)}>← BACK</button>
+                <button className="bp" style={{flex:1}} disabled={!py.utr||!py.file||ld} onClick={sub}>
+                  {ld?"SUBMITTING...":"SUBMIT FOR VERIFICATION 🔥"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Wallet({ user, go }) {
+      const [amt, setAmt] = useState("");
+      const [ws, setWs] = useState("home");
+      const [cp, setCp] = useState(false);
+      const [utr, setUtr] = useState("");
+      const [file, setFile] = useState(null);
+      const [fn, setFn] = useState("");
+      const [method, setMethod] = useState("PhonePe");
+      const [ld, setLd] = useState(false);
+      const copy=()=>{try{navigator.clipboard.writeText(UPI.id);}catch(e){}setCp(true);setTimeout(()=>setCp(false),2500);};
+      const sub=()=>{setLd(true);setTimeout(()=>{setLd(false);setWs("success");},1800);};
+      const reset=()=>{setWs("home");setAmt("");setUtr("");setFile(null);setFn("");};
+      if(!user)return(<div style={{padding:"120px 24px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>🔒</div><div className="O" style={{fontSize:18,marginBottom:14}}>Login Required</div><button className="bp" onClick={()=>go("login")}>LOGIN</button></div>);
+      if(ws==="success")return(
+        <div style={{padding:"80px 24px",display:"flex",alignItems:"center",justifyContent:"center",minHeight:"80vh"}}>
+          <div className="au" style={{textAlign:"center",maxWidth:420}}>
+            <div style={{width:72,height:72,borderRadius:"50%",background:"#00e67615",border:"3px solid #00e676",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,margin:"0 auto 18px",animation:"pop .5s ease"}}>✅</div>
+            <div className="O" style={{fontSize:20,fontWeight:900,color:"#00e676",marginBottom:8}}>REQUEST SUBMITTED!</div>
+            <div style={{color:"#6b7280",lineHeight:1.9,marginBottom:22}}>₹{amt} add karne ka request gaya.<br/>Admin 30 min mein verify karega.</div>
+            <button className="bp" onClick={reset}>BACK TO WALLET</button>
+          </div>
+        </div>
+      );
+      if(ws==="upi")return(
+        <div style={{padding:"80px 24px 52px",maxWidth:560,margin:"0 auto"}}>
+          <div className="st" style={{marginBottom:22}}>PAY <span>VIA UPI</span></div>
+          <div className="card au" style={{padding:26,marginBottom:13}}>
+            <div style={{background:"linear-gradient(135deg,#1a0800,#111318)",border:"2px solid #ff4d0055",padding:20,textAlign:"center",marginBottom:20,animation:"gp 3s infinite"}}>
+              <div className="O" style={{fontSize:48,fontWeight:900,color:"#ff4d00"}}>₹{amt}</div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div onClick={copy} style={{background:"#111318",border:"1px solid #ff4d0040",padding:"12px 15px",display:"flex",justifyContent:"space-between",cursor:"pointer"}}>
+                <div className="O" style={{fontSize:17,color:"#ff4d00"}}>{UPI.id}</div>
+                <span>{cp?"✅":"📋"}</span>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {["PhonePe","GPay","Paytm","BHIM"].map(app=>(
+                <a key={app} href={upiDeep(app,amt)} style={{textDecoration:"none"}}>
+                  <div style={{padding:"10px 12px",background:"#111318",border:"1px solid #1e2130",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+                    <span style={{fontSize:20}}>{app==="PhonePe"?"💜":app==="GPay"?"🔵":app==="Paytm"?"🔷":"🟢"}</span>
+                    <span className="R" style={{fontSize:14,fontWeight:700}}>{app}</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:9}}>
+            <button className="bo" onClick={()=>setWs("home")}>← BACK</button>
+            <button className="bp" style={{flex:1}} onClick={()=>setWs("confirm")}>PAYMENT KI ✓ → NEXT</button>
+          </div>
+        </div>
+      );
+      if(ws==="confirm")return(
+        <div style={{padding:"80px 24px 52px",maxWidth:560,margin:"0 auto"}}>
+          <div className="st" style={{marginBottom:22}}>CONFIRM <span>PAYMENT</span></div>
+          <div className="card au" style={{padding:26,marginBottom:13}}>
+            <div style={{marginBottom:14}}>
+              <label className="lbl">UTR / Transaction ID *</label>
+              <input className="inp" value={utr} onChange={e=>setUtr(e.target.value)} placeholder="12-digit UTR number"/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <label className="lbl">Payment Screenshot *</label>
+              <label htmlFor="wss" style={{display:"block",background:"#111318",border:"2px dashed #1e2130",padding:22,textAlign:"center",cursor:"pointer"}}>
+                {file?<div style={{color:"#00e676"}}>✅ {fn}</div>:<div>📸 Upload Screenshot</div>}
+              </label>
+              <input id="wss" type="file" accept="image/*" onChange={e=>{if(e.target.files[0]){setFile(e.target.files[0]);setFn(e.target.files[0].name);}}}/>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:9}}>
+            <button className="bo" onClick={()=>setWs("upi")}>← BACK</button>
+            <button className="bp" style={{flex:1}} disabled={!utr||!file||ld} onClick={sub}>
+              {ld?"SUBMITTING...":"SUBMIT FOR VERIFICATION 🔥"}
+            </button>
+          </div>
+        </div>
+      );
+      return(
+        <div style={{padding:"80px 24px 52px",maxWidth:880,margin:"0 auto"}}>
+          <div className="st" style={{marginBottom:26}}>MY <span>WALLET</span></div>
+          <div style={{background:"linear-gradient(135deg,#1a0800,#0d1a0d)",border:"1px solid #ff4d0035",padding:26,marginBottom:22}}>
+            <div style={{fontSize:11,letterSpacing:3,color:"#6b7280",marginBottom:6}}>AVAILABLE BALANCE</div>
+            <div className="O" style={{fontSize:48,fontWeight:900,color:"#00e676"}}>₹{user.wallet||0}</div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+            <div className="card" style={{padding:24}}>
+              <div className="O" style={{fontSize:12,letterSpacing:2,marginBottom:16}}>➕ ADD MONEY</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:13}}>
+                {["50","100","200","500","1000","2000"].map(a=>(
+                  <div key={a} onClick={()=>setAmt(a)} style={{padding:"10px 0",textAlign:"center",background:amt===a?"#ff4d0018":"#111318",border:`1px solid ${amt===a?"#ff4d00":"#1e2130"}`,cursor:"pointer",fontFamily:"'Orbitron',monospace",fontSize:14,fontWeight:700,color:amt===a?"#ff4d00":"#6b7280"}}>₹{a}</div>
+                ))}
+              </div>
+              <input className="inp" value={amt} onChange={e=>setAmt(e.target.value.replace(/\D/g,""))} placeholder="₹ Custom amount" style={{marginBottom:12}}/>
+              <button className="bp" style={{width:"100%"}} disabled={!amt||Number(amt)<10} onClick={()=>setWs("upi")}>
+                {amt&&Number(amt)>=10?`ADD ₹${amt} →`:"SELECT AMOUNT"}
+              </button>
+            </div>
+            <div className="card" style={{padding:24}}>
+              <div className="O" style={{fontSize:12,letterSpacing:2,marginBottom:16}}>📋 TRANSACTIONS</div>
+              {(user.txns||[]).length===0
+                ?<div style={{padding:"22px 0",textAlign:"center",color:"#6b7280",fontSize:13}}>Abhi koi transaction nahi.<br/>Paise add karo to yahan dikhega.</div>
+                :(user.txns||[]).map((tx,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderBottom:"1px solid #1e2130"}}>
+                    <div className="R" style={{fontWeight:600}}>{tx.desc} <span style={{color:"#6b7280",fontSize:11}}>{tx.date}</span></div>
+                    <div className="O" style={{color:tx.type==="credit"?"#00e676":"#ff3b3b"}}>{tx.amt}</div>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Profile({ user, go, updateUser, logout }) {
+      const [tab, setTab] = useState("overview");
+      const [editing, setEditing] = useState(false);
+      const [ef, setEf] = useState({name:user?.name||"",mobile:user?.mobile||"",email:user?.email||""});
+      if(!user)return(<div style={{padding:"120px 24px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>🔒</div><div className="O" style={{fontSize:18,marginBottom:14}}>Login Required</div><button className="bp" onClick={()=>go("login")}>LOGIN</button></div>);
+      const save=()=>{updateUser({...user,...ef});setEditing(false);};
+      return(
+        <div style={{padding:"80px 24px 52px",maxWidth:1060,margin:"0 auto"}}>
+          <div style={{background:"linear-gradient(135deg,#111318,#1a0a00)",border:"1px solid #1e2130",padding:26,marginBottom:22,display:"flex",alignItems:"center",gap:22}}>
+            <Av n={user.name} sz={76}/>
+            <div style={{flex:1}}>
+              <div className="O" style={{fontSize:22,fontWeight:900,marginBottom:4}}>{user.name}</div>
+              <div style={{fontSize:13,color:"#6b7280",marginBottom:8}}>UID: {user.uid} • {user.email}</div>
+            </div>
+            <div style={{display:"flex",gap:9}}>
+              <button className="bo" onClick={()=>setEditing(true)}>✏ EDIT</button>
+              <button className="bp" onClick={()=>go("wallet")}>💰 WALLET</button>
+              <button onClick={()=>{logout();go("home");}} style={{background:"transparent",border:"1px solid #ff3b3b40",color:"#ff3b3b",padding:"9px 16px",cursor:"pointer",fontFamily:"'Orbitron',monospace",fontSize:10,letterSpacing:2}}>LOGOUT</button>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:11,marginBottom:22}}>
+            {[{label:"Tournaments",value:"0",icon:"🎮",color:"#ff4d00"},{label:"Wins",value:"0",icon:"🏆",color:"#ffd700"},{label:"Kills",value:"0",icon:"🔫",color:"#ff3b3b"},{label:"Points",value:"0",icon:"⭐",color:"#00b4d8"},{label:"Win Rate",value:"0%",icon:"📊",color:"#00e676"},{label:"Wallet",value:"₹"+(user.wallet||0),icon:"💰",color:"#00e676"}].map(s=>(
+              <div key={s.label} className="card" style={{padding:"16px 8px",textAlign:"center",cursor:s.label==="Wallet"?"pointer":undefined}} onClick={s.label==="Wallet"?()=>go("wallet"):undefined}>
+                <div style={{fontSize:22,marginBottom:6}}>{s.icon}</div>
+                <div className="O" style={{fontSize:19,fontWeight:700,color:s.color}}>{s.value}</div>
+                <div style={{fontSize:10,color:"#6b7280",letterSpacing:1,marginTop:3}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{borderBottom:"1px solid #1e2130",marginBottom:20}}>
+            {["overview","wallet","notifications"].map(t=>(
+              <button key={t} className={`tab ${tab===t?"on":""}`} onClick={()=>setTab(t)} style={{textTransform:"capitalize"}}>{t}</button>
+            ))}
+          </div>
+          {tab==="overview"&&(
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              <div className="card" style={{padding:20}}>
+                <div className="R" style={{fontSize:15,fontWeight:700,letterSpacing:2,marginBottom:13}}>UPCOMING MATCHES</div>
+                {TOURS.filter(t=>t.status==="upcoming").slice(0,2).map(t=>(
+                  <div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderBottom:"1px solid #1e2130"}}>
+                    <div><div className="R" style={{fontSize:14,fontWeight:700}}>{t.name}</div><div style={{fontSize:12,color:"#6b7280"}}>{t.date}</div></div>
+                  </div>
+                ))}
+                <button className="bo" style={{width:"100%",marginTop:13}} onClick={()=>go("tournaments")}>+ JOIN MORE</button>
+              </div>
+              <div className="card" style={{padding:20}}>
+                <div className="R" style={{fontSize:15,fontWeight:700,letterSpacing:2,marginBottom:13}}>ACCOUNT INFO</div>
+                {[["Name",user.name],["Email",user.email],["Mobile",user.mobile||"—"],["FF UID",user.uid||"—"],["Wallet","₹"+(user.wallet||0)]].map(([k,v])=>(
+                  <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid #1e2130"}}>
+                    <span style={{color:"#6b7280",fontSize:13}}>{k}</span>
+                    <span className="R" style={{fontSize:13,fontWeight:600}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {tab==="wallet"&&(
+            <div>
+              <div style={{background:"linear-gradient(135deg,#1a0800,#0d1a0d)",border:"1px solid #ff4d0035",padding:26,marginBottom:18}}>
+                <div style={{fontSize:11,letterSpacing:3,color:"#6b7280",marginBottom:6}}>AVAILABLE BALANCE</div>
+                <div className="O" style={{fontSize:48,fontWeight:900,color:"#00e676"}}>₹{user.wallet||0}</div>
+                <button className="bp" style={{marginTop:14}} onClick={()=>go("wallet")}>➕ ADD MONEY</button>
+              </div>
+            </div>
+          )}
+          {tab==="notifications"&&(
+            <div style={{display:"grid",gap:9}}>
+              {[{icon:"🏆",title:"Welcome to FireZone!",msg:"Account successfully ban gaya. Tournaments join karo aur jeeto!",time:"Just now",unread:true}].map((n,i)=>(
+                <div key={i} className="card" style={{padding:16,display:"flex",gap:12,borderLeft:`3px solid ${n.unread?"#ff4d00":"transparent"}`}}>
+                  <div style={{fontSize:20}}>{n.icon}</div>
+                  <div style={{flex:1}}>
+                    <div className="R" style={{fontSize:14,fontWeight:700}}>{n.title}</div>
+                    <div style={{fontSize:13,color:"#6b7280",marginTop:3}}>{n.msg}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {editing&&(
+            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000}} onClick={()=>setEditing(false)}>
+              <div className="card au" style={{padding:26,width:460}} onClick={e=>e.stopPropagation()}>
+                <div className="O" style={{fontSize:14,fontWeight:700,marginBottom:18}}>EDIT PROFILE</div>
+                <div style={{display:"grid",gap:13}}>
+                  {[["Display Name","name"],["Mobile Number","mobile"]].map(([l,k])=>(
+                    <div key={k}><label className="lbl">{l}</label><input className="inp" value={ef[k]} onChange={e=>setEf(f=>({...f,[k]:e.target.value}))}/></div>
+                  ))}
+                </div>
+                <div style={{display:"flex",gap:9,marginTop:18}}>
+                  <button className="bo" onClick={()=>setEditing(false)}>CANCEL</button>
+                  <button className="bp" style={{flex:1}} onClick={save}>SAVE CHANGES ✓</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Auth({ mode, go, login }) {
+      const [isL, setIsL] = useState(mode==="login");
+      const [f, setF] = useState({name:"",email:"",mobile:"",uid:"",pass:""});
+      const [ld, setLd] = useState(false);
+      const [err, setErr] = useState("");
+      const submit = async () => {
+        setErr(""); setLd(true);
+        try {
+          if (isL) {
+            if (!f.email||!f.pass) { setErr("Email aur password zaroori hai"); setLd(false); return; }
+            const cred = await signInWithEmailAndPassword(fbAuth, f.email, f.pass);
+            const snap = await getDoc(doc(fbDB, "users", cred.user.uid));
+            login(snap.exists() ? {...snap.data(),firebaseUid:cred.user.uid} : {name:f.email.split("@")[0],email:f.email,wallet:0,firebaseUid:cred.user.uid});
+            go("profile");
+          } else {
+            if (!f.name||!f.email||!f.mobile||!f.uid||!f.pass) { setErr("Sab fields fill karo"); setLd(false); return; }
+            if (f.pass.length < 6) { setErr("Password min 6 characters ka ho"); setLd(false); return; }
+            const cred = await createUserWithEmailAndPassword(fbAuth, f.email, f.pass);
+            const userData = {name:f.name,email:f.email,mobile:f.mobile,uid:f.uid,wallet:0,txns:[],createdAt:new Date().toISOString()};
+            await setDoc(doc(fbDB,"users",cred.user.uid), userData);
+            login({...userData,firebaseUid:cred.user.uid});
+            go("profile");
+          }
+        } catch(e) {
+          const msgs = {"auth/email-already-in-use":"Yeh email already registered hai","auth/invalid-email":"Galat email format","auth/wrong-password":"Galat password","auth/user-not-found":"Account nahi mila","auth/weak-password":"Password min 6 characters","auth/too-many-requests":"Bahut attempts — thodi der baad try karo","auth/invalid-credential":"Galat email ya password"};
+          setErr(msgs[e.code]||"Error: "+e.message);
+        }
+        setLd(false);
+      };
+      return(
+        <div className="grid-bg" style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"80px 20px"}}>
+          <div style={{width:"100%",maxWidth:390}}>
+            <div style={{textAlign:"center",marginBottom:26}}>
+              <div style={{fontSize:42,marginBottom:9}}>🔥</div>
+              <div className="O" style={{fontSize:24,fontWeight:900}}>FIRE<span style={{color:"#ff4d00"}}>ZONE</span></div>
+              <div className="R" style={{color:"#6b7280",letterSpacing:2,fontSize:11,marginTop:2}}>FREE FIRE TOURNAMENT HUB</div>
+            </div>
+            <div className="card" style={{padding:30}}>
+              <div style={{display:"flex",marginBottom:22}}>
+                {["LOGIN","SIGNUP"].map((t,i)=>(
+                  <button key={t} onClick={()=>{setIsL(i===0);setErr("");}} style={{flex:1,padding:10,background:(isL&&i===0)||(!isL&&i===1)?"#ff4d00":"transparent",border:`1px solid ${(isL&&i===0)||(!isL&&i===1)?"#ff4d00":"#1e2130"}`,color:(isL&&i===0)||(!isL&&i===1)?"white":"#6b7280",fontFamily:"'Orbitron',monospace",fontSize:11,letterSpacing:2,cursor:"pointer"}}>{t}</button>
+                ))}
+              </div>
+              <div style={{display:"grid",gap:12}}>
+                {!isL&&<div><label className="lbl">Player Name *</label><input className="inp" value={f.name} onChange={e=>setF(x=>({...x,name:e.target.value}))} placeholder="Display name"/></div>}
+                <div><label className="lbl">Email *</label><input className="inp" type="email" value={f.email} onChange={e=>setF(x=>({...x,email:e.target.value}))} placeholder="email@example.com" onKeyDown={e=>e.key==="Enter"&&submit()}/></div>
+                {!isL&&<>
+                  <div><label className="lbl">Mobile *</label><input className="inp" value={f.mobile} onChange={e=>setF(x=>({...x,mobile:e.target.value}))} placeholder="+91 XXXXX XXXXX"/></div>
+                  <div><label className="lbl">Free Fire UID *</label><input className="inp" value={f.uid} onChange={e=>setF(x=>({...x,uid:e.target.value}))} placeholder="Your Free Fire UID"/></div>
+                </>}
+                <div><label className="lbl">Password *</label><input className="inp" type="password" value={f.pass} onChange={e=>setF(x=>({...x,pass:e.target.value}))} placeholder="Min 6 characters" onKeyDown={e=>e.key==="Enter"&&submit()}/></div>
+              </div>
+              {err&&<div style={{background:"#ff3b3b15",border:"1px solid #ff3b3b40",color:"#ff3b3b",fontSize:12,marginTop:11,padding:"9px 12px",textAlign:"center"}}>{err}</div>}
+              <button className="bp" style={{width:"100%",marginTop:18,padding:13}} disabled={ld} onClick={submit}>
+                {ld?<span style={{display:"flex",alignItems:"center",gap:8,justifyContent:"center"}}><span style={{width:13,height:13,border:"2px solid white",borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>{isL?"LOGGING IN...":"CREATING ACCOUNT..."}</span>:isL?"LOGIN →":"CREATE ACCOUNT →"}
+              </button>
+              <div style={{textAlign:"center",marginTop:13}}>
+                <span style={{color:"#6b7280",fontSize:13}}>{isL?"Account nahi hai? ":"Already account hai? "}</span>
+                <span style={{color:"#ff4d00",cursor:"pointer",fontSize:13}} onClick={()=>{setIsL(!isL);setErr("");}}>{isL?"Register karo":"Login karo"}</span>
+              </div>
+              <div style={{borderTop:"1px solid #1e2130",marginTop:14,paddingTop:13,textAlign:"center"}}>
+                <span style={{color:"#6b7280",fontSize:11,cursor:"pointer"}} onClick={()=>go("admin")}>⚙ Admin Panel</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Leaderboard(){
+      return(
+        <div style={{padding:"80px 24px 52px",maxWidth:880,margin:"0 auto"}}>
+          <div className="st" style={{marginBottom:26}}>GLOBAL <span>LEADERBOARD</span></div>
+          <div style={{display:"flex",alignItems:"flex-end",justifyContent:"center",gap:13,marginBottom:32}}>
+            {[LB[1],LB[0],LB[2]].map((p,i)=>{
+              const h=[155,195,135],cols=["#c0c0c0","#ffd700","#cd7f32"],lbs=["2nd","1st","3rd"];
+              return(<div key={p.rank} style={{textAlign:"center"}}>
+                <Av n={p.name} sz={50} g={`linear-gradient(135deg,${cols[i]},${cols[i]}80)`}/>
+                <div className="R" style={{fontSize:13,fontWeight:700,marginTop:5}}>{p.name}</div>
+                <div className="O" style={{fontSize:15,color:cols[i],fontWeight:700,marginBottom:7}}>{p.pts.toLocaleString()}</div>
+                <div style={{width:105,height:h[i],background:`${cols[i]}18`,border:`1px solid ${cols[i]}40`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Orbitron',monospace",fontSize:18,fontWeight:900,color:cols[i],animation:i===1?"fl 3s infinite":undefined}}>{lbs[i]}</div>
+              </div>);
+            })}
+          </div>
+          <div style={{background:"#111318",border:"1px solid #1e2130"}}>
+            {LB.map((p,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"52px 1fr 110px 75px 75px 95px",padding:"13px 16px",borderBottom:"1px solid #1e2130"}}>
+                <div className="O" style={{color:p.rank<=3?"#ffd700":"#6b7280",fontWeight:700}}>#{p.rank}</div>
+                <div className="R" style={{fontSize:15,fontWeight:700}}>{p.name}</div>
+                <div style={{color:"#6b7280",fontSize:12}}>{p.team}</div>
+                <div className="O" style={{textAlign:"right",color:"#ff3b3b"}}>{p.kills}</div>
+                <div className="O" style={{textAlign:"right",color:"#ffd700"}}>{p.wins}</div>
+                <div className="O" style={{textAlign:"right",color:"#ff4d00",fontSize:16,fontWeight:700}}>{p.pts.toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function Live(){
+      const [s,setS]=useState(0);
+      useEffect(()=>{const t=setInterval(()=>setS(x=>x+1),1000);return()=>clearInterval(t);},[]);
+      const f=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+      return(
+        <div style={{padding:"80px 24px 52px",maxWidth:980,margin:"0 auto"}}>
+          <div style={{display:"flex",gap:13,alignItems:"center",marginBottom:22}}>
+            <div className="st">LIVE <span>MATCH</span></div>
+            <span className="bl" style={{padding:"5px 13px"}}>● BROADCASTING</span>
+            <div className="O" style={{marginLeft:"auto",fontSize:20,color:"#ff4d00"}}>⏱ {f(s)}</div>
+          </div>
+          <div style={{background:"linear-gradient(135deg,#1a0800,#16181f)",border:"2px solid #ff4d0055",padding:22,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:26,animation:"gp 3s infinite"}}>
+            {[["TOURNAMENT","BLAZING INFERNO CUP"],["ROOM ID","FF231598"],["PASSWORD","FIRE2026"],["PLAYERS ALIVE","72 / 100"]].map(([l,v])=>(
+              <div key={l} style={{textAlign:"center"}}>
+                <div style={{fontSize:9,letterSpacing:2,color:"#6b7280",fontFamily:"'Orbitron',monospace",marginBottom:5}}>{l}</div>
+                <div className="O" style={{fontSize:14,fontWeight:700,color:"#ff4d00"}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:"#111318",border:"1px solid #1e2130"}}>
+            {LB.slice(0,5).map((p,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"48px 1fr 80px",padding:"13px 16px",borderBottom:"1px solid #1e2130"}}>
+                <div className="O" style={{color:i===0?"#ffd700":"#6b7280",fontWeight:700}}>#{i+1}</div>
+                <div className="R" style={{fontSize:15,fontWeight:700}}>{p.name}</div>
+                <div className="O" style={{textAlign:"right",color:"#ff3b3b",fontSize:16}}>{p.kills-i*8}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    const ADMIN_EMAIL = "kumarveeru20007@gmail.com";
+    const ADMIN_PASS  = "ANSHIKAANSHIKAANSHIKA";
+
+    function Admin({ go }) {
+      const [auth, setAuth] = useState(()=>{try{return localStorage.getItem("fz_admin")==="1";}catch(e){return false;}});
+      const [ae, setAe] = useState("");
+      const [ap, setAp] = useState("");
+      const [aerr, setAerr] = useState("");
+      const [ald, setAld] = useState(false);
+      const adminLogin=()=>{setAerr("");if(ae!==ADMIN_EMAIL||ap!==ADMIN_PASS){setAerr("❌ Galat email ya password!");return;}setAld(true);setTimeout(()=>{try{localStorage.setItem("fz_admin","1");}catch(e){}setAuth(true);setAld(false);},800);};
+      const adminLogout=()=>{try{localStorage.removeItem("fz_admin");}catch(e){}setAuth(false);setAe("");setAp("");};
+      if(!auth)return(
+        <div className="grid-bg" style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{width:"100%",maxWidth:380}}>
+            <div style={{textAlign:"center",marginBottom:22}}>
+              <div style={{fontSize:38,marginBottom:8}}>🔐</div>
+              <div className="O" style={{fontSize:20,fontWeight:900}}>ADMIN <span style={{color:"#ff4d00"}}>LOGIN</span></div>
+            </div>
+            <div className="card" style={{padding:28}}>
+              <div style={{display:"grid",gap:13,marginBottom:4}}>
+                <div><label className="lbl">Admin Email</label><input className="inp" type="email" value={ae} onChange={e=>setAe(e.target.value)} onKeyDown={e=>e.key==="Enter"&&adminLogin()}/></div>
+                <div><label className="lbl">Password</label><input className="inp" type="password" value={ap} onChange={e=>setAp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&adminLogin()}/></div>
+              </div>
+              {aerr&&<div style={{color:"#ff3b3b",fontSize:12,marginBottom:11,textAlign:"center"}}>{aerr}</div>}
+              <button className="bp" style={{width:"100%",marginTop:14,padding:13}} disabled={!ae||!ap||ald} onClick={adminLogin}>
+                {ald?"VERIFYING...":"LOGIN TO ADMIN →"}
+              </button>
+              <div style={{textAlign:"center",marginTop:13}}><span style={{color:"#6b7280",fontSize:12,cursor:"pointer"}} onClick={()=>go("home")}>← Back to Website</span></div>
+            </div>
+          </div>
+        </div>
+      );
+      const [tab, setTab] = useState("dashboard");
+      const [pays, setPays] = useState([
+        {id:"PAY001",player:"GhostKiller99",uid:"2918374650",t:"BLAZING INFERNO CUP",amt:99,utr:"427819234567",time:"10 min",status:"pending"},
+        {id:"PAY002",player:"FireLord_FF",uid:"1837465920",t:"SOLO SHOWDOWN S5",amt:29,utr:"312784923456",time:"25 min",status:"pending"},
+        {id:"PAY003",player:"NightHawk_07",uid:"9273641580",t:"BLAZING INFERNO CUP",amt:99,utr:"519234876543",time:"1 hr",status:"verified"},
+        {id:"PAY004",player:"StormBreaker",uid:"8162534790",t:"DEATH VALLEY OPEN",amt:49,utr:"",time:"2 hr",status:"rejected"},
+      ]);
+      const [sel, setSel] = useState(null);
+      const [sc, setSc] = useState(false);
+      const act=(id,s)=>{setPays(p=>p.map(x=>x.id===id?{...x,status:s}:x));setSel(null);};
+      return(
+        <div style={{display:"flex",minHeight:"100vh"}}>
+          <div style={{width:205,background:"#111318",borderRight:"1px solid #1e2130",padding:"18px 0",flexShrink:0}}>
+            <div style={{padding:"0 16px 16px",borderBottom:"1px solid #1e2130",marginBottom:9}}>
+              <div className="O" style={{fontSize:10,letterSpacing:3,color:"#ff4d00"}}>ADMIN PANEL</div>
+            </div>
+            {[["dashboard","📊 Dashboard"],["payments","💳 Payments"],["tournaments","🏆 Tournaments"],["players","👥 Players"]].map(([k,l])=>(
+              <div key={k} onClick={()=>setTab(k)} style={{padding:"10px 16px",cursor:"pointer",color:tab===k?"#e8eaf0":"#6b7280",borderLeft:`3px solid ${tab===k?"#ff4d00":"transparent"}`,background:tab===k?"#ff4d000d":"transparent",fontFamily:"'Rajdhani',sans-serif",fontSize:14,fontWeight:600}}>{l}</div>
+            ))}
+            <div style={{padding:"16px 16px 0",borderTop:"1px solid #1e2130",marginTop:14}}>
+              <div onClick={()=>go("home")} style={{cursor:"pointer",color:"#6b7280",fontFamily:"'Rajdhani',sans-serif",fontSize:13,marginBottom:10}}>← Back to Website</div>
+              <div onClick={adminLogout} style={{cursor:"pointer",color:"#ff3b3b",fontFamily:"'Rajdhani',sans-serif",fontSize:13,fontWeight:700}}>🔓 Logout Admin</div>
+            </div>
+          </div>
+          <div style={{flex:1,padding:26,overflowY:"auto"}}>
+            {tab==="dashboard"&&(
+              <div>
+                <div className="O" style={{fontSize:18,fontWeight:700,marginBottom:20}}>ADMIN DASHBOARD</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:13,marginBottom:22}}>
+                  {[["Total Users","0","👥","#00b4d8"],["Tournaments","4","🏆","#ff4d00"],["Revenue","₹0","💰","#00e676"],["Pending","2","⏳","#ff3b3b"]].map(([l,v,ic,col])=>(
+                    <div key={l} className="card" style={{padding:16}}>
+                      <div style={{fontSize:24,marginBottom:7}}>{ic}</div>
+                      <div className="O" style={{fontSize:22,fontWeight:900,color:col}}>{v}</div>
+                      <div style={{fontSize:11,color:"#6b7280",letterSpacing:1,marginTop:3}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {tab==="payments"&&(
+              <div>
+                <div className="O" style={{fontSize:16,fontWeight:700,marginBottom:16}}>💳 PAYMENT VERIFICATION</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:11,marginBottom:16}}>
+                  {[["Pending",pays.filter(p=>p.status==="pending").length,"#ffd700"],["Verified",pays.filter(p=>p.status==="verified").length,"#00e676"],["Revenue","₹"+pays.filter(p=>p.status==="verified").reduce((a,b)=>a+b.amt,0),"#ff4d00"]].map(([l,v,col])=>(
+                    <div key={l} className="card" style={{padding:15}}>
+                      <div className="O" style={{fontSize:22,color:col}}>{v}</div>
+                      <div style={{fontSize:11,color:"#6b7280"}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{background:"#111318",border:"1px solid #1e2130"}}>
+                  {pays.map(p=>(
+                    <div key={p.id} style={{padding:"13px 14px",borderBottom:"1px solid #1e2130",display:"flex",alignItems:"center",gap:13}}>
+                      <div style={{flex:1}}>
+                        <div className="R" style={{fontSize:14,fontWeight:700}}>{p.player}</div>
+                        <div style={{fontSize:11,color:"#6b7280"}}>{p.t} • ₹{p.amt} • {p.time}</div>
+                      </div>
+                      <span className={p.status==="pending"?"sp":p.status==="verified"?"sv":"sr"}>{p.status.toUpperCase()}</span>
+                      {p.status==="pending"&&<div style={{display:"flex",gap:5}}>
+                        <button onClick={()=>act(p.id,"verified")} style={{padding:"5px 10px",background:"#00e67615",border:"1px solid #00e676",color:"#00e676",fontSize:11,cursor:"pointer"}}>✓ VERIFY</button>
+                        <button onClick={()=>act(p.id,"rejected")} style={{padding:"5px 10px",background:"#ff3b3b15",border:"1px solid #ff3b3b",color:"#ff3b3b",fontSize:11,cursor:"pointer"}}>✗ REJECT</button>
+                      </div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {tab==="tournaments"&&(
+              <div>
+                <div className="O" style={{fontSize:16,fontWeight:700,marginBottom:16}}>TOURNAMENT MANAGEMENT</div>
+                {TOURS.map((t,i)=>(
+                  <div key={i} className="card" style={{padding:16,marginBottom:9,display:"flex",alignItems:"center",gap:14}}>
+                    <div style={{flex:1}}>
+                      <div className="R" style={{fontSize:15,fontWeight:700}}>{t.name}</div>
+                      <div style={{fontSize:12,color:"#6b7280"}}>{t.mode} • {t.date} • {t.filled}/{t.slots} slots</div>
+                    </div>
+                    <span className={t.status==="live"?"bl":t.status==="upcoming"?"bu":"bd"}>{t.status}</span>
+                    <div className="O" style={{color:"#ffd700"}}>{t.prize}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {tab==="players"&&(
+              <div>
+                <div className="O" style={{fontSize:16,fontWeight:700,marginBottom:16}}>PLAYER MANAGEMENT</div>
+                <div style={{background:"#111318",border:"1px solid #1e2130",padding:20,textAlign:"center",color:"#6b7280"}}>
+                  Firebase se real players yahan dikhenge jab log register karenge.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function Footer({ go }){
+      return(
+        <footer style={{background:"#111318",borderTop:"1px solid #1e2130",padding:"32px 24px 20px"}}>
+          <div style={{maxWidth:1060,margin:"0 auto",display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:28,marginBottom:24}}>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:11,cursor:"pointer"}} onClick={()=>go("home")}>
+                <div style={{width:26,height:26,background:"linear-gradient(135deg,#ff4d00,#ff6a22)",clipPath:"polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>🔥</div>
+                <div className="O" style={{fontSize:13,fontWeight:900,letterSpacing:2}}>FIRE<span style={{color:"#ff4d00"}}>ZONE</span></div>
+              </div>
+              <div style={{color:"#6b7280",fontSize:12,lineHeight:1.8}}>India's premier Free Fire tournament platform.</div>
+              <div style={{marginTop:11,fontSize:12,color:"#6b7280"}}>UPI: <span style={{color:"#ff4d00"}}>{UPI.id}</span></div>
+            </div>
+            {[["TOURNAMENTS",["Upcoming","Live","Results"]],["PLAYERS",["Profile","Leaderboard","Wallet"]],["COMPANY",["About","Contact","Privacy"]]].map(([title,links])=>(
+              <div key={title}>
+                <div className="O" style={{fontSize:9,letterSpacing:3,color:"#ff4d00",marginBottom:12}}>{title}</div>
+                {links.map(l=><div key={l} onClick={()=>go(l.toLowerCase())} className="na" style={{display:"block",marginBottom:8,fontSize:13}}>{l}</div>)}
+              </div>
+            ))}
+          </div>
+          <div style={{borderTop:"1px solid #1e2130",paddingTop:16,display:"flex",justifyContent:"space-between"}}>
+            <div style={{fontSize:11,color:"#6b7280"}}>© 2026 FireZone Tournament Hub</div>
+            <div style={{fontSize:11,color:"#6b7280"}}>Made with 🔥 for Free Fire Players</div>
+          </div>
+        </footer>
+      );
+    }
+
+    function App() {
+      const [page, setPage] = useState("home");
+      const [user, setUser] = useState(null);
+      const [authLoading, setAuthLoading] = useState(true);
+
+      useEffect(()=>{
+        const s=document.createElement("style");
+        s.id="fz";s.textContent=CSS;
+        if(!document.getElementById("fz"))document.head.appendChild(s);
+        return()=>{const el=document.getElementById("fz");if(el)el.remove();};
+      },[]);
+
+      useEffect(()=>{
+        if(!fbAuth){setAuthLoading(false);return;}
+        const unsub = onAuthStateChanged(fbAuth, async (firebaseUser) => {
+          if (firebaseUser) {
+            try {
+              const snap = await getDoc(doc(fbDB,"users",firebaseUser.uid));
+              setUser(snap.exists()?{...snap.data(),firebaseUid:firebaseUser.uid}:{name:firebaseUser.email?.split("@")[0]||"Player",email:firebaseUser.email,wallet:0,firebaseUid:firebaseUser.uid});
+            } catch(e) {
+              setUser({name:firebaseUser.email?.split("@")[0]||"Player",email:firebaseUser.email,wallet:0,firebaseUid:firebaseUser.uid});
+            }
+          } else { setUser(null); }
+          setAuthLoading(false);
+        });
+        return()=>unsub();
+      },[]);
+
+      const go     = useCallback((p)=>{setPage(p);window.scrollTo(0,0);},[]);
+      const login  = useCallback((u)=>setUser(u),[]);
+      const logout = useCallback(async()=>{await signOut(fbAuth);setUser(null);},[]);
+      const upd    = useCallback(async(u)=>{
+        setUser(u);
+        if(u.firebaseUid){try{const{firebaseUid,...d}=u;await updateDoc(doc(fbDB,"users",firebaseUid),d);}catch(e){}}
+      },[]);
+
+      if(authLoading)return(
+        <div style={{minHeight:"100vh",background:"#0a0b0f",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
+          <div style={{width:40,height:40,border:"3px solid #ff4d00",borderTopColor:"transparent",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
+          <div style={{color:"#ff4d00",fontFamily:"'Courier New',monospace",fontSize:12,letterSpacing:3}}>LOADING...</div>
+        </div>
+      );
+
+      const render=()=>{
+        if(page.startsWith("pay_"))return <PayPage tid={page.split("_")[1]} go={go} user={user}/>;
+        switch(page){
+          case "home":        return <Home go={go}/>;
+          case "tournaments": return <div style={{padding:"80px 24px 52px",maxWidth:1200,margin:"0 auto"}}><div className="st" style={{marginBottom:26}}>ALL <span>TOURNAMENTS</span></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(285px,1fr))",gap:15}}>{TOURS.map(t=><TC key={t.id} t={t} go={go}/>)}</div></div>;
+          case "leaderboard": return <Leaderboard/>;
+          case "live":        return <Live/>;
+          case "wallet":      return <Wallet user={user} go={go}/>;
+          case "profile":     return <Profile user={user} go={go} updateUser={upd} logout={logout}/>;
+          case "login":       return <Auth mode="login"  go={go} login={login}/>;
+          case "signup":      return <Auth mode="signup" go={go} login={login}/>;
+          case "admin":       return <Admin go={go}/>;
+          default:            return <Home go={go}/>;
+        }
+      };
+
+      return(
+        <div style={{minHeight:"100vh",background:"#0a0b0f"}}>
+          {page!=="admin"&&<Nav pg={page} go={go} user={user}/>}
+          <main>{render()}</main>
+          {!["admin","login","signup"].includes(page)&&<Footer go={go}/>}
+        </div>
+      );
+    }
+
+    window.addEventListener("firebase-ready", () => {
+      ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+    });
+
+    // Fallback agar firebase-ready event already fire ho gaya ho
+    if(window.fbAuth){
+      ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+    }
+  </script>
+</body>
+</html>
